@@ -5,7 +5,7 @@ type TrendChartProps = {
 };
 
 const WIDTH = 900;
-const HEIGHT = 360;
+const HEIGHT = 440;
 const PADDING = 44;
 
 export function TrendChart({ readings }: TrendChartProps) {
@@ -39,7 +39,9 @@ export function TrendChart({ readings }: TrendChartProps) {
       role="img"
       viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
       width="100%"
-      height="360"
+      height="auto"
+      preserveAspectRatio="xMidYMid meet"
+      style={{ display: "block" }}
     >
       <defs>
         <linearGradient id="lineGradient" x1="0" x2="1" y1="0" y2="0">

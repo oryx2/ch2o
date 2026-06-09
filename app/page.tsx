@@ -18,19 +18,26 @@ export default async function Home() {
 
     return (
       <main className="page">
-        <section className="hero">
-          <div>
+        <header className="topbar">
+          <div className="topbar-title">
             <p className="eyebrow">CH₂O Monitor</p>
             <h1>甲醛数据看板</h1>
-            <p className="subtitle">
-              从 Supabase 的 <code>public.ch2o</code> 表读取传感器上报数据，展示最新浓度、趋势、
-              统计摘要和最近记录。页面默认约 30 秒重新取数。
-            </p>
           </div>
           <div className="pill">
             <span className="pulse" />
-            最新更新：{formatTime(stats.latest?.recordedAt ?? null)}
+            {formatTime(stats.latest?.recordedAt ?? null)}
           </div>
+        </header>
+
+        <section className="card section chart-primary">
+          <div className="section-head">
+            <div>
+              <h2>浓度趋势</h2>
+              <div className="muted">按上报时间从旧到新，虚线为 0.08 ppm 参考线。</div>
+            </div>
+            <span className="badge">ppm_value</span>
+          </div>
+          <TrendChart readings={readings} />
         </section>
 
         <section className="grid">
@@ -61,50 +68,37 @@ export default async function Home() {
           />
         </section>
 
-        <section className="main-grid">
-          <div className="card section chart-wrap">
-            <div className="section-head">
-              <div>
-                <h2>浓度趋势</h2>
-                <div className="muted">按上报时间从旧到新展示，虚线为 0.08 ppm 参考线。</div>
-              </div>
-              <span className="badge">ppm_value</span>
+        <section className="card section">
+          <div className="section-head">
+            <div>
+              <h2>最近记录</h2>
+              <div className="muted">优先使用 ppm_ct，无值时回退 create_time。</div>
             </div>
-            <TrendChart readings={readings} />
           </div>
-
-          <div className="card section">
-            <div className="section-head">
-              <div>
-                <h2>最近记录</h2>
-                <div className="muted">优先使用 ppm_ct，无值时回退 create_time。</div>
-              </div>
-            </div>
-            {recentReadings.length > 0 ? (
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>时间</th>
-                    <th>浓度</th>
+          {recentReadings.length > 0 ? (
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>时间</th>
+                  <th>浓度</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentReadings.map((reading) => (
+                  <tr key={reading.id}>
+                    <td>{formatTime(reading.recordedAt)}</td>
+                    <td>{formatPpm(reading.ppmValue)} ppm</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {recentReadings.map((reading) => (
-                    <tr key={reading.id}>
-                      <td>{formatTime(reading.recordedAt)}</td>
-                      <td>{formatPpm(reading.ppmValue)} ppm</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <div className="empty">Supabase 已连通，但暂时没有有效 ppm 数据。</div>
-            )}
-          </div>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="empty">Supabase 已连通，但暂时没有有效 ppm 数据。</div>
+          )}
         </section>
 
         <p className="footer">
-          部署到 Vercel 时配置 <code>SUPABASE_URL</code> 和 <code>SUPABASE_ANON_KEY</code> 即可。
+          数据来自 Supabase <code>public.ch2o</code>，约 30 秒自动刷新。
         </p>
       </main>
     );
