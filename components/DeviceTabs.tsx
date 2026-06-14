@@ -85,6 +85,36 @@ export function DeviceTabs({ devices }: DeviceTabsProps) {
             foot={formatTime(active.stats.maximum?.recordedAt ?? null)}
           />
         </section>
+
+        <section className="recent-records">
+          <div className="recent-records-head">
+            <h3>最近记录</h3>
+            <div className="muted">优先使用 ppm_ct，无值时回退 create_time。</div>
+          </div>
+          {active.readings.length > 0 ? (
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>时间</th>
+                  <th>浓度</th>
+                </tr>
+              </thead>
+              <tbody>
+                {active.readings
+                  .slice(-8)
+                  .reverse()
+                  .map((reading) => (
+                    <tr key={reading.id}>
+                      <td>{formatTime(reading.recordedAt)}</td>
+                      <td>{formatPpm(reading.ppmValue)} ppm</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="empty">该设备暂时没有有效 ppm 数据。</div>
+          )}
+        </section>
       </div>
     </div>
   );

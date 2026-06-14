@@ -1,7 +1,6 @@
 import { DeviceTabs } from "@/components/DeviceTabs";
 import {
   fetchCh2oReadings,
-  formatPpm,
   formatTag,
   formatTime,
   getDeviceColor,
@@ -15,10 +14,9 @@ export default async function Home() {
   try {
     const readings = await fetchCh2oReadings();
     const groups = groupReadingsByTag(readings);
-    const deviceTags = [...groups.keys()].sort((left, right) =>
+    const deviceTags = Array.from(groups.keys()).sort((left, right) =>
       formatTag(left).localeCompare(formatTag(right), "zh-CN"),
     );
-    const recentReadings = readings.slice(-8).reverse();
     const devicePanels = deviceTags.map((tag, index) => ({
       tag,
       label: formatTag(tag),
@@ -53,37 +51,6 @@ export default async function Home() {
             <span className="badge">ppm_value</span>
           </div>
           <DeviceTabs devices={devicePanels} />
-        </section>
-
-        <section className="card section">
-          <div className="section-head">
-            <div>
-              <h2>最近记录</h2>
-              <div className="muted">优先使用 ppm_ct，无值时回退 create_time。</div>
-            </div>
-          </div>
-          {recentReadings.length > 0 ? (
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>时间</th>
-                  <th>设备</th>
-                  <th>浓度</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentReadings.map((reading) => (
-                  <tr key={reading.id}>
-                    <td>{formatTime(reading.recordedAt)}</td>
-                    <td>{formatTag(reading.tag)}</td>
-                    <td>{formatPpm(reading.ppmValue)} ppm</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div className="empty">Supabase 已连通，但暂时没有有效 ppm 数据。</div>
-          )}
         </section>
 
         <p className="footer">

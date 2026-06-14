@@ -255,6 +255,24 @@ h1 {
   margin-top: 4px;
 }
 
+.recent-records {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.recent-records-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.recent-records-head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
 .empty,
 .error {
   padding: 22px;
