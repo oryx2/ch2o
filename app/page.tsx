@@ -1,10 +1,12 @@
-import { TrendChart } from "@/components/TrendChart";
+import { DeviceTabs } from "@/components/DeviceTabs";
 import {
   fetchCh2oReadings,
   formatPpm,
+  formatTag,
   formatTime,
-  getLevel,
+  getDeviceColor,
   getReadingStats,
+  groupReadingsByTag,
 } from "@/lib/formaldehyde";
 
 export const dynamic = "force-dynamic";
@@ -12,9 +14,18 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   try {
     const readings = await fetchCh2oReadings();
-    const stats = getReadingStats(readings);
-    const level = getLevel(stats.latest?.ppmValue ?? null);
+    const groups = groupReadingsByTag(readings);
+    const deviceTags = [...groups.keys()].sort((left, right) =>
+      formatTag(left).localeCompare(formatTag(right), "zh-CN"),
+    );
     const recentReadings = readings.slice(-8).reverse();
+    const devicePanels = deviceTags.map((tag, index) => ({
+      tag,
+      label: formatTag(tag),
+      color: getDeviceColor(tag, index),
+      readings: groups.get(tag) ?? [],
+      stats: getReadingStats(groups.get(tag) ?? []),
+    }));
 
     return (
       <main className="page">
@@ -25,7 +36,9 @@ export default async function Home() {
           </div>
           <div className="pill">
             <span className="pulse" />
-            {formatTime(stats.latest?.recordedAt ?? null)}
+            {deviceTags.length > 1
+              ? `${deviceTags.length} 台设备`
+              : formatTime(readings[readings.length - 1]?.recordedAt ?? null)}
           </div>
         </header>
 
@@ -33,39 +46,13 @@ export default async function Home() {
           <div className="section-head">
             <div>
               <h2>浓度趋势</h2>
-              <div className="muted">按上报时间从旧到新，虚线为 0.08 ppm 参考线。</div>
+              <div className="muted">
+                使用 Tab 切换设备；tag 为空时显示为「默认设备」。
+              </div>
             </div>
             <span className="badge">ppm_value</span>
           </div>
-          <TrendChart readings={readings} />
-        </section>
-
-        <section className="grid">
-          <MetricCard
-            label="当前浓度"
-            value={formatPpm(stats.latest?.ppmValue ?? null)}
-            unit="ppm"
-            foot={level.description}
-            color={level.color}
-          />
-          <MetricCard
-            label="空气状态"
-            value={level.label}
-            foot="按 ppm 阈值粗略分级"
-            color={level.color}
-          />
-          <MetricCard
-            label="平均值"
-            value={formatPpm(stats.average)}
-            unit="ppm"
-            foot={`最近 ${stats.count} 条有效记录`}
-          />
-          <MetricCard
-            label="峰值"
-            value={formatPpm(stats.maximum?.ppmValue ?? null)}
-            unit="ppm"
-            foot={formatTime(stats.maximum?.recordedAt ?? null)}
-          />
+          <DeviceTabs devices={devicePanels} />
         </section>
 
         <section className="card section">
@@ -80,6 +67,7 @@ export default async function Home() {
               <thead>
                 <tr>
                   <th>时间</th>
+                  <th>设备</th>
                   <th>浓度</th>
                 </tr>
               </thead>
@@ -87,6 +75,7 @@ export default async function Home() {
                 {recentReadings.map((reading) => (
                   <tr key={reading.id}>
                     <td>{formatTime(reading.recordedAt)}</td>
+                    <td>{formatTag(reading.tag)}</td>
                     <td>{formatPpm(reading.ppmValue)} ppm</td>
                   </tr>
                 ))}
@@ -121,28 +110,4 @@ export default async function Home() {
       </main>
     );
   }
-}
-
-function MetricCard({
-  label,
-  value,
-  unit,
-  foot,
-  color,
-}: {
-  label: string;
-  value: string;
-  unit?: string;
-  foot: string;
-  color?: string;
-}) {
-  return (
-    <div className="card metric">
-      <p className="metric-label">{label}</p>
-      <p className="metric-value" style={{ color }}>
-        {value} {unit ? <span>{unit}</span> : null}
-      </p>
-      <p className="metric-foot">{foot}</p>
-    </div>
-  );
 }

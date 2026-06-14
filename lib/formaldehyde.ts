@@ -2,6 +2,7 @@ export type Ch2oReading = {
   id: number;
   ppmValue: number;
   recordedAt: string;
+  tag: string | null;
 };
 
 type SupabaseCh2oRow = {
@@ -9,6 +10,7 @@ type SupabaseCh2oRow = {
   ppm_value: string | number | null;
   ppm_ct: string | null;
   create_time: string | null;
+  tag: string | null;
 };
 
 export type ReadingStats = {
@@ -23,6 +25,7 @@ const DEFAULT_TABLE = "ch2o";
 const DEFAULT_TIMESTAMP_COLUMN = "ppm_ct";
 const DEFAULT_FALLBACK_TIMESTAMP_COLUMN = "create_time";
 const DEFAULT_VALUE_COLUMN = "ppm_value";
+const DEFAULT_TAG_COLUMN = "tag";
 const DEFAULT_LIMIT = 120;
 
 export async function fetchCh2oReadings(): Promise<Ch2oReading[]> {
@@ -40,9 +43,10 @@ export async function fetchCh2oReadings(): Promise<Ch2oReading[]> {
     process.env.FORMALDEHYDE_FALLBACK_TIMESTAMP_COLUMN ||
     DEFAULT_FALLBACK_TIMESTAMP_COLUMN;
   const valueColumn = process.env.FORMALDEHYDE_VALUE_COLUMN || DEFAULT_VALUE_COLUMN;
+  const tagColumn = process.env.FORMALDEHYDE_TAG_COLUMN || DEFAULT_TAG_COLUMN;
   const limit = Number(process.env.FORMALDEHYDE_LIMIT || DEFAULT_LIMIT);
 
-  const selectColumns = ["id", valueColumn, timestampColumn, fallbackTimestampColumn]
+  const selectColumns = ["id", valueColumn, timestampColumn, fallbackTimestampColumn, tagColumn]
     .filter((column, index, columns) => column && columns.indexOf(column) === index)
     .join(",");
   const query = new URL(`${supabaseUrl.replace(/\/$/, "")}/rest/v1/${table}`);
@@ -81,6 +85,7 @@ export async function fetchCh2oReadings(): Promise<Ch2oReading[]> {
         id: row.id,
         ppmValue: value,
         recordedAt,
+        tag: row.tag?.trim() || null,
       };
     })
     .filter((reading): reading is Ch2oReading => Boolean(reading))
@@ -88,6 +93,22 @@ export async function fetchCh2oReadings(): Promise<Ch2oReading[]> {
       (left, right) =>
         new Date(left.recordedAt).getTime() - new Date(right.recordedAt).getTime(),
     );
+}
+
+export function formatTag(tag: string | null): string {
+  return tag ?? "默认设备";
+}
+
+export function groupReadingsByTag(readings: Ch2oReading[]): Map<string | null, Ch2oReading[]> {
+  const groups = new Map<string | null, Ch2oReading[]>();
+
+  for (const reading of readings) {
+    const bucket = groups.get(reading.tag) ?? [];
+    bucket.push(reading);
+    groups.set(reading.tag, bucket);
+  }
+
+  return groups;
 }
 
 export function getReadingStats(readings: Ch2oReading[]): ReadingStats {
@@ -167,6 +188,12 @@ export function formatPpm(value: number | null): string {
   }
 
   return value.toFixed(3);
+}
+
+export const DEVICE_COLORS = ["#67e8f9", "#4ade80", "#fb923c", "#c084fc", "#f472b6"] as const;
+
+export function getDeviceColor(_tag: string | null, index: number): string {
+  return DEVICE_COLORS[index % DEVICE_COLORS.length];
 }
 
 export function formatTime(value: string | null): string {
