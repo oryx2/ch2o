@@ -6,6 +6,7 @@ import {
   getDeviceColor,
   getReadingStats,
   groupReadingsByTag,
+  isEns160Tag,
 } from "@/lib/formaldehyde";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +49,11 @@ export default async function Home() {
                 使用 Tab 切换设备；tag 为空时显示为「默认设备」。
               </div>
             </div>
-            <span className="badge">ppm_value</span>
+            <span className="badge">
+              {devicePanels.some((device) => isEns160Tag(device.tag))
+                ? "CO₂ / AQI / TVOC"
+                : "ppm_value"}
+            </span>
           </div>
           <DeviceTabs devices={devicePanels} />
         </section>

@@ -1,8 +1,15 @@
-import { Ch2oReading, formatTime } from "@/lib/formaldehyde";
+import {
+  CH2O_REFERENCE_PPM,
+  Ch2oReading,
+  TVOC_REFERENCE_LINES,
+  formatPpm,
+  formatTime,
+} from "@/lib/formaldehyde";
 
 type TrendChartProps = {
   readings: Ch2oReading[];
   color?: string;
+  variant?: "ch2o" | "tvoc";
 };
 
 const WIDTH = 900;
@@ -16,40 +23,111 @@ type SeriesPoint = {
   reading: Ch2oReading;
 };
 
+type ReferenceLine = {
+  value: number;
+  label: string;
+  color: string;
+};
+
+function valueToY(value: number, minimum: number, range: number): number {
+  return HEIGHT - PADDING - ((value - minimum) / range) * (HEIGHT - PADDING * 2);
+}
+
+function isYVisible(y: number): boolean {
+  return y >= PADDING && y <= HEIGHT - PADDING;
+}
+
 function buildPoints(
   readings: Ch2oReading[],
   minimum: number,
   range: number,
+  valueKey: "ppmValue",
 ): SeriesPoint[] {
-  return readings.map((reading, pointIndex) => {
-    const x =
-      readings.length === 1
-        ? WIDTH / 2
-        : PADDING + (pointIndex / (readings.length - 1)) * (WIDTH - PADDING * 2);
-    const y =
-      HEIGHT - PADDING - ((reading.ppmValue - minimum) / range) * (HEIGHT - PADDING * 2);
+  return readings
+    .filter((reading) => reading[valueKey] !== null)
+    .map((reading, pointIndex, filtered) => {
+      const value = reading[valueKey] as number;
+      const x =
+        filtered.length === 1
+          ? WIDTH / 2
+          : PADDING + (pointIndex / (filtered.length - 1)) * (WIDTH - PADDING * 2);
 
-    return { x, y, reading };
-  });
+      return { x, y: valueToY(value, minimum, range), reading };
+    });
 }
 
-export function TrendChart({ readings, color = DEFAULT_COLOR }: TrendChartProps) {
-  if (readings.length === 0) {
+function ChartReferenceLines({
+  lines,
+  minimum,
+  range,
+}: {
+  lines: ReferenceLine[];
+  minimum: number;
+  range: number;
+}) {
+  return (
+    <>
+      {lines.map((line, index) => {
+        const y = valueToY(line.value, minimum, range);
+
+        if (!isYVisible(y)) {
+          return null;
+        }
+
+        return (
+          <g key={line.value}>
+            <line
+              x1={PADDING}
+              x2={WIDTH - PADDING}
+              y1={y}
+              y2={y}
+              stroke={line.color}
+              strokeDasharray="6 8"
+              strokeOpacity="0.85"
+            />
+            <text
+              x={index % 2 === 0 ? PADDING : WIDTH - PADDING}
+              y={y - 8}
+              fill={line.color}
+              fontSize="12"
+              textAnchor={index % 2 === 0 ? "start" : "end"}
+            >
+              {line.label}
+            </text>
+          </g>
+        );
+      })}
+    </>
+  );
+}
+
+export function TrendChart({
+  readings,
+  color = DEFAULT_COLOR,
+  variant = "ch2o",
+}: TrendChartProps) {
+  const chartReadings = readings.filter((reading) => reading.ppmValue !== null);
+
+  if (chartReadings.length === 0) {
     return <div className="empty">还没有可展示的数据。传感器下一次上报后，这里会亮起来。</div>;
   }
 
-  const values = readings.map((reading) => reading.ppmValue);
+  const values = chartReadings.map((reading) => reading.ppmValue as number);
   const minimum = Math.min(0, ...values);
-  const maximum = Math.max(0.1, ...values);
+  const maximum = Math.max(variant === "ch2o" ? 0.1 : 0.22, ...values);
   const range = maximum - minimum || 1;
-  const points = buildPoints(readings, minimum, range);
-  const safeLimitY = HEIGHT - PADDING - ((0.08 - minimum) / range) * (HEIGHT - PADDING * 2);
+  const points = buildPoints(chartReadings, minimum, range, "ppmValue");
+  const referenceLines: ReferenceLine[] =
+    variant === "ch2o"
+      ? [{ value: CH2O_REFERENCE_PPM, label: `${CH2O_REFERENCE_PPM} ppm 参考线`, color: "#facc15" }]
+      : [...TVOC_REFERENCE_LINES];
   const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+  const unitLabel = "ppm";
 
   return (
     <div className="chart-wrap">
       <svg
-        aria-label="甲醛 ppm 趋势图"
+        aria-label={variant === "ch2o" ? "甲醛 ppm 趋势图" : "TVOC 趋势图"}
         role="img"
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         width="100%"
@@ -72,22 +150,7 @@ export function TrendChart({ readings, color = DEFAULT_COLOR }: TrendChartProps)
           );
         })}
 
-        {safeLimitY >= PADDING && safeLimitY <= HEIGHT - PADDING ? (
-          <>
-            <line
-              x1={PADDING}
-              x2={WIDTH - PADDING}
-              y1={safeLimitY}
-              y2={safeLimitY}
-              stroke="#facc15"
-              strokeDasharray="6 8"
-              strokeOpacity="0.8"
-            />
-            <text x={PADDING} y={safeLimitY - 8} fill="#facc15" fontSize="12">
-              0.08 ppm 参考线
-            </text>
-          </>
-        ) : null}
+        <ChartReferenceLines lines={referenceLines} minimum={minimum} range={range} />
 
         {points.length > 1 ? (
           <path d={path} fill="none" stroke={color} strokeWidth="3" />
@@ -113,7 +176,7 @@ export function TrendChart({ readings, color = DEFAULT_COLOR }: TrendChartProps)
         ) : null}
 
         <text x={PADDING} y={HEIGHT - 12} fill="rgba(237,253,247,0.62)" fontSize="12">
-          {formatTime(readings[0].recordedAt)}
+          {formatTime(chartReadings[0].recordedAt)}
         </text>
         <text
           x={WIDTH - PADDING}
@@ -122,13 +185,13 @@ export function TrendChart({ readings, color = DEFAULT_COLOR }: TrendChartProps)
           fontSize="12"
           textAnchor="end"
         >
-          {formatTime(readings[readings.length - 1].recordedAt)}
+          {formatTime(chartReadings[chartReadings.length - 1].recordedAt)}
         </text>
         <text x={PADDING} y={24} fill="rgba(237,253,247,0.72)" fontSize="12">
-          {maximum.toFixed(3)} ppm
+          {formatPpm(maximum)} {variant === "tvoc" ? "TVOC" : unitLabel}
         </text>
         <text x={PADDING} y={HEIGHT - PADDING + 18} fill="rgba(237,253,247,0.72)" fontSize="12">
-          {minimum.toFixed(3)} ppm
+          {formatPpm(minimum)} {variant === "tvoc" ? "TVOC" : unitLabel}
         </text>
       </svg>
     </div>

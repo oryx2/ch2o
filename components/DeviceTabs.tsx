@@ -5,9 +5,13 @@ import { TrendChart } from "@/components/TrendChart";
 import {
   Ch2oReading,
   ReadingStats,
+  formatInteger,
   formatPpm,
   formatTime,
+  getAqiLevel,
   getLevel,
+  getNumericStats,
+  isEns160Tag,
 } from "@/lib/formaldehyde";
 
 export type DevicePanel = {
@@ -30,7 +34,11 @@ export function DeviceTabs({ devices }: DeviceTabsProps) {
   }
 
   const active = devices[Math.min(activeIndex, devices.length - 1)];
+  const isEns160 = isEns160Tag(active.tag);
   const level = getLevel(active.stats.latest?.ppmValue ?? null);
+  const aqiLevel = getAqiLevel(active.stats.latest?.aqi ?? null);
+  const co2Stats = getNumericStats(active.readings, (reading) => reading.co2Ppm);
+  const tvocStats = getNumericStats(active.readings, (reading) => reading.ppmValue);
 
   return (
     <div className="device-tabs">
@@ -57,34 +65,67 @@ export function DeviceTabs({ devices }: DeviceTabsProps) {
       ) : null}
 
       <div role="tabpanel" aria-label={`${active.label} 数据`}>
-        <TrendChart readings={active.readings} color={active.color} />
-        <section className="grid device-metrics">
-          <MetricCard
-            label="当前浓度"
-            value={formatPpm(active.stats.latest?.ppmValue ?? null)}
-            unit="ppm"
-            foot={formatTime(active.stats.latest?.recordedAt ?? null)}
-            color={level.color}
-          />
-          <MetricCard
-            label="空气状态"
-            value={level.label}
-            foot={level.description}
-            color={level.color}
-          />
-          <MetricCard
-            label="平均值"
-            value={formatPpm(active.stats.average)}
-            unit="ppm"
-            foot={`该设备最近 ${active.stats.count} 条有效记录`}
-          />
-          <MetricCard
-            label="峰值"
-            value={formatPpm(active.stats.maximum?.ppmValue ?? null)}
-            unit="ppm"
-            foot={formatTime(active.stats.maximum?.recordedAt ?? null)}
-          />
-        </section>
+        <TrendChart
+          readings={active.readings}
+          color={active.color}
+          variant={isEns160 ? "tvoc" : "ch2o"}
+        />
+        {isEns160 ? (
+          <section className="grid device-metrics">
+            <MetricCard
+              label="CO₂"
+              value={formatInteger(active.stats.latest?.co2Ppm ?? null)}
+              unit="ppm"
+              foot={formatTime(active.stats.latest?.recordedAt ?? null)}
+            />
+            <MetricCard
+              label="AQI"
+              value={formatInteger(active.stats.latest?.aqi ?? null)}
+              foot={aqiLevel.description}
+              color={aqiLevel.color}
+            />
+            <MetricCard
+              label="TVOC"
+              value={formatPpm(active.stats.latest?.ppmValue ?? null)}
+              unit="ppm"
+              foot={`平均 ${formatPpm(tvocStats.average)} ppm`}
+            />
+            <MetricCard
+              label="空气质量"
+              value={aqiLevel.label}
+              foot={`CO₂ 峰值 ${formatInteger(co2Stats.maximum)} ppm`}
+              color={aqiLevel.color}
+            />
+          </section>
+        ) : (
+          <section className="grid device-metrics">
+            <MetricCard
+              label="当前浓度"
+              value={formatPpm(active.stats.latest?.ppmValue ?? null)}
+              unit="ppm"
+              foot={formatTime(active.stats.latest?.recordedAt ?? null)}
+              color={level.color}
+            />
+            <MetricCard
+              label="空气状态"
+              value={level.label}
+              foot={level.description}
+              color={level.color}
+            />
+            <MetricCard
+              label="平均值"
+              value={formatPpm(active.stats.average)}
+              unit="ppm"
+              foot={`该设备最近 ${active.stats.count} 条有效记录`}
+            />
+            <MetricCard
+              label="峰值"
+              value={formatPpm(active.stats.maximum?.ppmValue ?? null)}
+              unit="ppm"
+              foot={formatTime(active.stats.maximum?.recordedAt ?? null)}
+            />
+          </section>
+        )}
 
         <section className="recent-records">
           <div className="recent-records-head">
@@ -96,7 +137,15 @@ export function DeviceTabs({ devices }: DeviceTabsProps) {
               <thead>
                 <tr>
                   <th>时间</th>
-                  <th>浓度</th>
+                  {isEns160 ? (
+                    <>
+                      <th>CO₂</th>
+                      <th>AQI</th>
+                      <th>TVOC</th>
+                    </>
+                  ) : (
+                    <th>浓度</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -106,13 +155,23 @@ export function DeviceTabs({ devices }: DeviceTabsProps) {
                   .map((reading) => (
                     <tr key={reading.id}>
                       <td>{formatTime(reading.recordedAt)}</td>
-                      <td>{formatPpm(reading.ppmValue)} ppm</td>
+                      {isEns160 ? (
+                        <>
+                          <td>{formatInteger(reading.co2Ppm)} ppm</td>
+                          <td>{formatInteger(reading.aqi)}</td>
+                          <td>{formatPpm(reading.ppmValue)} ppm</td>
+                        </>
+                      ) : (
+                        <td>{formatPpm(reading.ppmValue)} ppm</td>
+                      )}
                     </tr>
                   ))}
               </tbody>
             </table>
           ) : (
-            <div className="empty">该设备暂时没有有效 ppm 数据。</div>
+            <div className="empty">
+              {isEns160 ? "该设备暂时没有有效传感器数据。" : "该设备暂时没有有效 ppm 数据。"}
+            </div>
           )}
         </section>
       </div>
